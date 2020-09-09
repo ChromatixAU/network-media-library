@@ -558,8 +558,14 @@ class ACF_Field_Rendering {
 	public function __construct() {
 		$this->switched = false;
 		add_action( 'acf/render_field', [ $this, 'maybe_restore_current_blog' ], -999 );
+
+		// Handle "file" fields
 		add_action( 'acf/render_field/type=file', [ $this, 'maybe_switch_to_media_site' ], 0 );
 		add_action( 'acf/render_field/type=file', [ $this, 'maybe_restore_current_blog' ], 11 );
+
+		// Handle "gallery" fields
+		add_action( 'acf/render_field/type=gallery', [ $this, 'maybe_switch_to_media_site' ], 0 );
+		add_action( 'acf/render_field/type=gallery', [ $this, 'maybe_restore_current_blog' ], 11 );
 	}
 
 	/**
