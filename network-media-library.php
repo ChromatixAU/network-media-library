@@ -456,7 +456,11 @@ function make_content_images_responsive( $content ) {
 
 	switch_to_media_site();
 
-	$content = wp_make_content_images_responsive( $content );
+	if (function_exists('wp_filter_content_tags')) {
+		$content = wp_filter_content_tags( $content );
+	} else {
+		$content = wp_make_content_images_responsive( $content );
+	}
 
 	restore_current_blog();
 
