@@ -10,18 +10,18 @@
  * - [Network Shared Media](https://wordpress.org/plugins/network-shared-media/)
  *
  * @package   network-media-library
- * @link      https://github.com/chromatixAU/network-media-library
- * @author    John Blackbourn <john@johnblackbourn.com>, Dominik Schilling <d.schilling@inpsyde.com>, Frank Bültge <f.bueltge@inpsyde.com>, Julian Chan <julian.chan@chromatix.com.au>
- * @copyright 2019 Human Made, 2019 Chromatix
+ * @link      https://github.com/humanmade/network-media-library
+ * @author    John Blackbourn <john@johnblackbourn.com>, Dominik Schilling <d.schilling@inpsyde.com>, Frank Bültge <f.bueltge@inpsyde.com>
+ * @copyright 2019 Human Made
  * @license   https://opensource.org/licenses/MIT
  *
  * Plugin Name: Network Media Library
  * Description: Network Media Library provides a central media library that's shared across all sites on the Multisite network.
  * Network:     true
- * Plugin URI:  https://github.com/chromatixAU/network-media-library
- * Version:     1.5.3
- * Author:      John Blackbourn, Dominik Schilling, Frank Bültge, Julian Chan
- * Author URI:  https://github.com/chromatixAU/network-media-library/graphs/contributors
+ * Plugin URI:  https://github.com/humanmade/network-media-library
+ * Version:     1.5.5
+ * Author:      John Blackbourn, Dominik Schilling, Frank Bültge
+ * Author URI:  https://github.com/humanmade/network-media-library/graphs/contributors
  * License:     MIT
  * License URI: ./LICENSE
  * Text Domain: network-media-library
@@ -116,41 +116,6 @@ function prevent_attaching() {
 	unset( $_REQUEST['post_id'] );
 }
 
-/**
- * Switches to the media site when on local site when it is the media library page i.e. upload.php
- */
-function switch_on_attachment() {
-	if ( is_media_site() ) {
-		return;
-	}
-
-	$referer_array = parse_url( $_SERVER[ 'HTTP_REFERER' ] );
-	if ( $referer_array === false ) {
-		if ( ! wp_doing_ajax() ) {
-			echo '<pre>Referer doesn\'t exist when deleting post.  Preventing post deletion.</pre>';
-		}
-		exit;
-	}
-
-	$referer_path = $referer_array['path'];
-	
-	if ( endsWith( $referer_path, 'upload.php' ) ) {
-		switch_to_media_site();	
-	}
-}
-
-/**
- * Utility Function for checking if string ends with substring
- */
-function endsWith($haystack, $needle) {
-	$length = strlen($needle);
-	if ($length == 0) {
-		return true;
-	}
-
-	return (substr($haystack, -$length) === $needle);
-}
-
 add_filter( 'admin_post_thumbnail_html', __NAMESPACE__ . '\admin_post_thumbnail_html', 99, 3 );
 /**
  * Filters the admin post thumbnail HTML markup to return.
@@ -172,17 +137,17 @@ function admin_post_thumbnail_html( string $content, $post_id, $thumbnail_id ) :
 
 	switch_to_blog( get_site_id() );
 	$switched = true;
-	
-	$post_type_check = get_post_type($thumbnail_id);
-	if($post_type_check !== 'attachment'){
-	    $switched = false;
-	    restore_current_blog();
-	    
-	    update_post_meta($post_id, '_thumbnail_id', null);
-	    
-	    return $content;
-	}
-	
+
+    $post_type_check = get_post_type($thumbnail_id);
+    if($post_type_check !== 'attachment'){
+        $switched = false;
+        restore_current_blog();
+
+        update_post_meta($post_id, '_thumbnail_id', null);
+
+        return $content;
+    }
+
 	// $thumbnail_id is passed instead of post_id to avoid warning messages of nonexistent post object.
 	$content  = _wp_post_thumbnail_html( $thumbnail_id, $thumbnail_id );
 	$switched = false;
@@ -304,43 +269,27 @@ add_action( 'wp_ajax_query-attachments', __NAMESPACE__ . '\switch_to_media_site'
 add_action( 'wp_ajax_send-attachment-to-editor', __NAMESPACE__ . '\switch_to_media_site', 0 );
 add_filter( 'map_meta_cap', __NAMESPACE__ . '\allow_media_library_access', 10, 4 );
 
-add_action( 'wp_ajax_delete-post', __NAMESPACE__ . '\switch_on_attachment', 0 );
-
 // Support for the WP User Avatars plugin.
 add_action( 'wp_ajax_assign_wp_user_avatars_media', __NAMESPACE__ . '\switch_to_media_site', 0 );
 
-/**	
- * Filters the attachment data prepared for JavaScript.	
- *	
- * @param array      $response   Array of prepared attachment data.	
- * @param WP_Post    $attachment Attachment ID or object.	
- * @param array|bool $meta       Array of attachment meta data, or boolean false if there is none.	
- * @return array Array of prepared attachment data.	
- */	
-add_filter( 'wp_prepare_attachment_for_js', function( array $response, \WP_Post $attachment, $meta ) : array {	
-	if ( is_media_site() ) {	
-		return $response;	
-	}	
-	// Prevent media from being deleted from any site other than the network media library site.	
-	// This is needed in order to prevent incorrect posts from being deleted on the local site.	
-	// Chromatix: allow deletion from local site media used in conjunction with wp_ajax_delete-post action so you can
-	// delete, but only on the upload.php page
-	$referer_array = parse_url( $_SERVER[ 'HTTP_REFERER' ] );
-	if ( $referer_array === false ) {
-		if ( ! wp_doing_ajax() ) {
-			echo '<pre>Referer doesn\'t exist when preparing attachment for JS.  Preventing deletion.</pre>';
-		}
-		unset( $response['nonces']['delete'] );	
+/**
+ * Filters the attachment data prepared for JavaScript.
+ *
+ * @param array      $response   Array of prepared attachment data.
+ * @param WP_Post    $attachment Attachment ID or object.
+ * @param array|bool $meta       Array of attachment meta data, or boolean false if there is none.
+ * @return array Array of prepared attachment data.
+ */
+add_filter( 'wp_prepare_attachment_for_js', function( array $response, \WP_Post $attachment, $meta ) : array {
+	if ( is_media_site() ) {
 		return $response;
 	}
-	
-	$referer_path = $referer_array['path'];
-	
-	if ( ! endsWith( $referer_path, 'upload.php' ) ) {
-		unset( $response['nonces']['delete'] );	
-	}
-	
-	return $response;	
+
+	// Prevent media from being deleted from any site other than the network media library site.
+	// This is needed in order to prevent incorrect posts from being deleted on the local site.
+	unset( $response['nonces']['delete'] );
+
+	return $response;
 }, 0, 3 );
 
 /**
@@ -418,7 +367,7 @@ function allow_media_library_access( array $caps, string $cap, int $user_id, arr
 
 	if ( 'edit_post' === $cap ) {
 		$content = get_post( $args[0] );
-		if ( ! isset( $content ) || 'attachment' !== $content->post_type ) {
+		if ( 'attachment' !== $content->post_type ) {
 			return $caps;
 		}
 
@@ -454,15 +403,11 @@ function make_content_images_responsive( $content ) {
 		return $content;
 	}
 
-	switch_to_media_site();
+	/*switch_to_media_site();
 
-	if (function_exists('wp_filter_content_tags')) {
-		$content = wp_filter_content_tags( $content );
-	} else {
-		$content = wp_make_content_images_responsive( $content );
-	}
+	$content = wp_make_content_images_responsive( $content );
 
-	restore_current_blog();
+	restore_current_blog();*/
 
 	return $content;
 }
@@ -476,11 +421,11 @@ add_filter( 'the_content', __NAMESPACE__ . '\make_content_images_responsive' );
 class ACF_Value_Filter {
 
 	/**
-	 * Stores the value of the field[s].
+	 * Stores the value of the field.
 	 *
-	 * @var mixed Field value array.
+	 * @var mixed Field value.
 	 */
-	protected $value = null;
+    protected $value = [];
 
 	/**
 	 * Sets up the necessary action and filter callbacks.
@@ -490,7 +435,6 @@ class ACF_Value_Filter {
 			'image',
 			'file',
 		];
-		$value = [];
 
 		foreach ( $field_types as $type ) {
 			add_filter( "acf/load_value/type={$type}", [ $this, 'filter_acf_attachment_load_value' ], 0, 3 );
@@ -499,7 +443,7 @@ class ACF_Value_Filter {
 	}
 
 	/**
-	 * Fiters the return value when using field retrieval functions in Advanced Custom Fields.
+	 * Filters the return value when using field retrieval functions in Advanced Custom Fields.
 	 *
 	 * @param mixed      $value   The field value.
 	 * @param int|string $post_id The post ID for this value.
@@ -522,15 +466,26 @@ class ACF_Value_Filter {
 			}
 
 			restore_current_blog();
-		}
 
-		$this->value[$field['name']] = $image;
+		} else if ( ! is_admin() ) {
+
+            switch ( $field['return_format'] ) {
+                case 'url':
+                    $image = wp_get_attachment_url( $value );
+                    break;
+                case 'array':
+                    $image = acf_get_attachment( $value );
+                    break;
+            }
+        }
+
+        $this->value[ $field['name'] ] = $image;
 
 		return $image;
 	}
 
 	/**
-	 * Fiters the optionally formatted value when using field retrieval functions in Advanced Custom Fields.
+	 * Filters the optionally formatted value when using field retrieval functions in Advanced Custom Fields.
 	 *
 	 * @param mixed      $value   The field value.
 	 * @param int|string $post_id The post ID for this value.
@@ -538,7 +493,7 @@ class ACF_Value_Filter {
 	 * @return mixed The updated value.
 	 */
 	public function filter_acf_attachment_format_value( $value, $post_id, array $field ) {
-		return $this->value[$field['name']];
+        return $this->value[ $field['name'] ];
 	}
 }
 
@@ -560,10 +515,8 @@ class ACF_Field_Rendering {
 	 * Sets up the necessary action and filter callbacks.
 	 */
 	public function __construct() {
-		$this->switched = false;
 		add_action( 'acf/render_field', [ $this, 'maybe_restore_current_blog' ], -999 );
 		add_action( 'acf/render_field/type=file', [ $this, 'maybe_switch_to_media_site' ], 0 );
-		add_action( 'acf/render_field/type=file', [ $this, 'maybe_restore_current_blog' ], 11 );
 	}
 
 	/**
@@ -579,7 +532,7 @@ class ACF_Field_Rendering {
 	 * Switches back to the current site if the previous field triggered a switch to the central media site.
 	 */
 	public function maybe_restore_current_blog() {
-		if ( true === $this->switched ) {
+		if ( ! empty( $this->switched ) ) {
 			restore_current_blog();
 		}
 
@@ -645,3 +598,56 @@ class Post_Thumbnail_Saver {
 }
 
 new Post_Thumbnail_Saver();
+
+/**
+ * A class which handles saving the post's featured image ID when submitted from a REST request.
+ *
+ * This handling is needed because adding a featured image from the Gutenberg editor fires off
+ * a REST request to `/wp-json/wp/v2/posts/<id>`, with a request payload containing `featured_media`
+ * with the ID of the featured image. A call to `set_post_thumbnail()` validates that the featured
+ * image post ID exists, and if the post ID does not exist, `handle_featured_media` returns a WP_Error
+ * with a code of `rest_invalid_featured_media`.
+ *
+ * There is a chance that the featured image on the media site could have a post ID that is not a
+ * valid post ID on the site the featured image is being applied to (for example, a post has been
+ * deleted). After the post has been submitted via the REST request, the featured image is re-applied
+ * to ensure that it is saved with the post.
+ */
+class Post_Thumbnail_Saver_REST {
+
+    /**
+     * Sets up the necessary action callback if the post is being saved from a REST request.
+     */
+    public function __construct() {
+        add_action( 'rest_api_init', function () {
+            add_action( 'pre_post_update', [ $this, 'action_pre_post_update' ], 10, 2 );
+        });
+    }
+
+    /**
+     * Hooks into the correct action of `rest_insert_`, based on the post type being saved.
+     *
+     * @param int   $post_id Post ID.
+     * @param array $data    Array of unslashed post data.
+     */
+    public function action_pre_post_update( int $post_id, array $data ) {
+        add_action( 'rest_insert_' . get_post_type( $post_id ), [ $this, 'action_rest_insert' ], 10, 3 );
+    }
+
+    /**
+     * Re-saves the featured image ID for the given post.
+     *
+     * @param WP_Post         $post     Inserted or updated post object.
+     * @param WP_REST_Request $request  Request object.
+     * @param bool            $creating True when creating a post, false when updating.
+     */
+    public function action_rest_insert( $post, $request, bool $creating ) {
+        $request_json = $request->get_json_params();
+
+        if ( array_key_exists( 'featured_media', $request_json ) ) {
+            update_post_meta( $post->ID, '_thumbnail_id', $request_json[ 'featured_media' ] );
+        }
+    }
+}
+
+new Post_Thumbnail_Saver_REST();
